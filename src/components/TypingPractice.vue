@@ -22,20 +22,20 @@
       </div>
       
       <div class="practice-content" ref="contentRef">
-        <div class="text-segment">
-          <span 
-            v-for="(char, index) in visibleContent" 
-            :key="index"
-            :class="{
-              'typed': index < (currentIndex - currentSegmentStart),
-              'current': index === (currentIndex - currentSegmentStart),
-              'error': errors[currentSegmentStart + index]
-            }"
-          >{{ char }}</span>
-        </div>
-        <div class="segment-info" v-if="totalSegments > 1">
-          第 {{ currentSegment + 1 }}/{{ totalSegments }} 段
-        </div>
+        <span 
+          v-for="(char, index) in practiceContent" 
+          :key="index"
+          :class="{
+            'typed': index < currentIndex,
+            'current': index === currentIndex,
+            'error': errors[index]
+          }"
+        >{{ char }}</span>
+      </div>
+      
+      <div class="typed-content">
+        <p>已输入内容：</p>
+        <div class="typed-text">{{ typedText }}</div>
       </div>
       
       <div class="input-area">
@@ -52,6 +52,35 @@
           autocapitalize="off"
           spellcheck="false"
         />
+      </div>
+      
+      <div class="actions">
+        <button class="btn-primary" @click="restart">重新开始</button>
+        <button class="btn-secondary" @click="goBack">返回选择</button>
+      </div>
+      
+      <div v-if="isFinished" class="result-overlay">
+        <div class="result-card">
+          <h2>练习完成！</h2>
+          <div class="result-stats">
+            <div class="result-stat">
+              <div class="result-label">速度</div>
+              <div class="result-value">{{ speed }} 字/分</div>
+            </div>
+            <div class="result-stat">
+              <div class="result-label">准确率</div>
+              <div class="result-value">{{ accuracy }}%</div>
+            </div>
+            <div class="result-stat">
+              <div class="result-label">用时</div>
+              <div class="result-value">{{ formatTime(time) }}</div>
+            </div>
+          </div>
+          <div class="result-actions">
+            <button class="btn-primary" @click="restart">再次练习</button>
+            <button class="btn-secondary" @click="viewResults">查看详细结果</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -75,9 +104,14 @@ export default {
     
     // 分段相关的计算属性
     const SEGMENT_SIZE = 200 // 每段显示的字符数
-    const totalSegments = computed(() => Math.ceil(practiceContent.value.length / SEGMENT_SIZE))
     const currentSegment = computed(() => Math.floor(currentIndex.value / SEGMENT_SIZE))
     const currentSegmentStart = computed(() => currentSegment.value * SEGMENT_SIZE)
+    
+    const handleKeyDown = (event) => {
+    if (event.key === 'Enter' && isFinished.value) {
+      restart()
+    }
+    }
     const visibleContent = computed(() => {
       const start = currentSegmentStart.value
       const end = Math.min(start + SEGMENT_SIZE, practiceContent.value.length)
@@ -176,24 +210,14 @@ export default {
       router.push('/results')
     }
     
-    const handleKeyDown = (e) => {
-      if (e.key === 'Enter' && isFinished.value) {
-        restart()
-      }
-    }
-    
     const restart = () => {
-      inputText.value = ''
       currentIndex.value = 0
       errors.value = {}
       startTime.value = null
       time.value = 0
       isFinished.value = false
+      inputText.value = ''
       stopTimer()
-      
-      if (inputRef.value) {
-        inputRef.value.focus()
-      }
     }
     
     const goBack = () => {
@@ -217,32 +241,35 @@ export default {
       stopTimer()
     })
     
+    const displayNextKey = computed(() => {
+      if (isFinished.value || !practiceContent.value) return ''
+      return practiceContent.value[currentIndex.value] || ''
+    })
+
+    const typedText = computed(() => {
+      return practiceContent.value.slice(0, currentIndex.value)
+    })
+    
     return {
+      contentRef,
+      inputRef,
       practiceContent,
+      selectedMode,
       modeName,
       inputText,
       currentIndex,
       errors,
       time,
+      isFinished,
       speed,
       accuracy,
-      isFinished,
-      contentRef,
-      inputRef,
+      typedText,
       handleInput,
       handleKeyDown,
       restart,
       goBack,
-      formatTime: (seconds) => {
-        const mins = Math.floor(seconds / 60)
-        const secs = seconds % 60
-        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-      },
-      // 添加分段相关的计算属性
-      visibleContent,
-      totalSegments,
-      currentSegment,
-      currentSegmentStart
+      viewResults,
+      formatTime
     }
   }
 }
@@ -271,6 +298,23 @@ export default {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
+  position: relative;
+}
+
+.btn-back {
+  position: absolute;
+  left: 0;
+  padding: 0.5rem 1rem;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn-back:hover {
+  background-color: #45a049;
 }
 
 h1 {
@@ -312,69 +356,67 @@ h1 {
 }
 
 .practice-content {
-  margin: 2rem 0;
-  padding: 1rem;
-  background-color: #f8f9fa;
+  font-size: 1.25rem;
+  line-height: 1.6;
+  background-color: #f9f9f9;
+  padding: 1.5rem;
   border-radius: 8px;
-  font-size: 1.2rem;
-  line-height: 1.8;
-}
-
-.text-segment {
+  margin-bottom: 1.5rem;
+  min-height: 200px;
   white-space: pre-wrap;
   word-break: break-all;
-}
-
-.text-segment span {
   position: relative;
-  transition: all 0.2s;
 }
 
-.text-segment span.typed {
-  color: #28a745;
+.next-key-hint {
+  position: absolute;
+  bottom: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1rem;
+  color: #666;
+  background-color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.text-segment span.current {
-  background-color: #007bff;
-  color: white;
-  border-radius: 2px;
+.next-key {
+  font-weight: bold;
+  color: #4CAF50;
+  margin-left: 0.5rem;
 }
 
-.text-segment span.error {
-  color: #dc3545;
+.practice-content span {
+  position: relative;
+}
+
+.practice-content span.typed {
+  color: #4CAF50;
+}
+
+.practice-content span.current {
+  background-color: rgba(76, 175, 80, 0.2);
+  border-bottom: 2px solid #4CAF50;
+}
+
+.practice-content span.error {
+  color: #f44336;
   text-decoration: underline;
-  text-decoration-color: #dc3545;
-}
-
-.segment-info {
-  margin-top: 1rem;
-  text-align: center;
-  color: #6c757d;
+  text-decoration-color: #f44336;
 }
 
 .input-area {
-  margin-top: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .input-area input {
   width: 100%;
-  padding: 0.5rem;
-  font-size: 1.1rem;
-  border: 2px solid #ced4da;
+  padding: 0.75rem;
+  font-size: 1rem;
+  border: 1px solid #ddd;
   border-radius: 4px;
-  transition: border-color 0.2s;
 }
-
-.input-area input:focus {
-  outline: none;
-  border-color: #007bff;
-}
-
-.input-area input:disabled {
-  background-color: #e9ecef;
-  cursor: not-allowed;
-}
-
 
 .actions {
   display: flex;
@@ -531,4 +573,65 @@ h1 {
   font-size: 14px;
   line-height: 1.5;
 }
+
+.typed-history {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+}
+
+.typed-history h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  color: #666;
+}
+
+.history-content {
+  font-size: 1.25rem;
+  line-height: 1.6;
+  color: #4CAF50;
+  min-height: 1.6em;
+}
+
+
+.typed-content {
+  margin: 1rem 0;
+  padding: 1rem;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+.typed-content p {
+  font-size: 0.875rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.typed-text {
+  font-size: 1.1rem;
+  color: #333;
+  line-height: 1.4;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
 </style>
+
+const viewResults = () => {
+  router.push('/results')
+}
+
+const formatTime = (seconds) => {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+}
+
+const viewResults = () => {
+  store.dispatch('saveResults', {
+    speed: speed.value,
+    accuracy: accuracy.value,
+    time: time.value
+  })
+  router.push('/results')
+}
