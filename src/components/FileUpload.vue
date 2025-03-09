@@ -64,7 +64,12 @@ export default {
 
     const previewContent = computed(() => {
       if (!fileContent.value) return ''
-      return fileContent.value.slice(0, 200) + (fileContent.value.length > 200 ? '...' : '')
+      const content = fileContent.value
+      if (content.length <= 400) return content
+      
+      const start = content.slice(0, 200)
+      const end = content.slice(-200)
+      return `${start}\n...（中间省略${content.length - 400}个字符）...\n${end}`
     })
 
     const handleFileChange = async (event) => {

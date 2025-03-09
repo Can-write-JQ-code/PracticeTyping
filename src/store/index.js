@@ -43,22 +43,32 @@ export default createStore({
     selectMode({ commit }, mode) {
       commit('setMode', mode)
     },
-    loadPracticeContent({ commit }, mode) {
-      // 根据选择的模式加载练习内容
+    loadPracticeContent({ commit }, payload) {
+      // 根据选择的模式和自定义文本加载练习内容
       let content = ''
       
-      switch(mode) {
-        case 'chinese':
-          content = '这是一段中文打字练习文本，用于提高您的中文输入速度和准确率。'
-          break
-        case 'english':
-          content = 'This is an English typing practice text to improve your typing speed and accuracy.'
-          break
-        case 'wubi':
-          content = '五笔字型输入法练习文本，帮助您熟悉五笔字型的输入规则和提高输入速度。'
-          break
-        default:
-          content = '默认打字练习文本。'
+      // 如果传入的是对象，则包含mode和customText
+      const mode = typeof payload === 'object' ? payload.mode : payload
+      const customText = typeof payload === 'object' ? payload.customText : ''
+      
+      // 如果有自定义文本，优先使用自定义文本
+      if (customText && customText.trim()) {
+        content = customText.trim()
+      } else {
+        // 否则使用默认文本
+        switch(mode) {
+          case 'chinese':
+            content = '这是一段中文打字练习文本，用于提高您的中文输入速度和准确率。'
+            break
+          case 'english':
+            content = 'This is an English typing practice text to improve your typing speed and accuracy.'
+            break
+          case 'wubi':
+            content = '五笔字型输入法练习文本，帮助您熟悉五笔字型的输入规则和提高输入速度。'
+            break
+          default:
+            content = '默认打字练习文本。'
+        }
       }
       
       commit('setPracticeContent', content)

@@ -22,15 +22,20 @@
       </div>
       
       <div class="practice-content" ref="contentRef">
-        <span 
-          v-for="(char, index) in practiceContent" 
-          :key="index"
-          :class="{
-            'typed': index < currentIndex,
-            'current': index === currentIndex,
-            'error': errors[index]
-          }"
-        >{{ char }}</span>
+        <div class="text-segment">
+          <span 
+            v-for="(char, index) in visibleContent" 
+            :key="index"
+            :class="{
+              'typed': index < (currentIndex - currentSegmentStart),
+              'current': index === (currentIndex - currentSegmentStart),
+              'error': errors[currentSegmentStart + index]
+            }"
+          >{{ char }}</span>
+        </div>
+        <div class="segment-info" v-if="totalSegments > 1">
+          第 {{ currentSegment + 1 }}/{{ totalSegments }} 段
+        </div>
       </div>
       
       <div class="input-area">
@@ -67,6 +72,17 @@ export default {
     
     const practiceContent = computed(() => store.getters.practiceContent || '')
     const selectedMode = computed(() => store.getters.selectedMode)
+    
+    // 分段相关的计算属性
+    const SEGMENT_SIZE = 200 // 每段显示的字符数
+    const totalSegments = computed(() => Math.ceil(practiceContent.value.length / SEGMENT_SIZE))
+    const currentSegment = computed(() => Math.floor(currentIndex.value / SEGMENT_SIZE))
+    const currentSegmentStart = computed(() => currentSegment.value * SEGMENT_SIZE)
+    const visibleContent = computed(() => {
+      const start = currentSegmentStart.value
+      const end = Math.min(start + SEGMENT_SIZE, practiceContent.value.length)
+      return practiceContent.value.slice(start, end)
+    })
     
     const modeName = computed(() => {
       switch(selectedMode.value) {
@@ -221,7 +237,12 @@ export default {
         const mins = Math.floor(seconds / 60)
         const secs = seconds % 60
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-      }
+      },
+      // 添加分段相关的计算属性
+      visibleContent,
+      totalSegments,
+      currentSegment,
+      currentSegmentStart
     }
   }
 }
@@ -291,47 +312,69 @@ h1 {
 }
 
 .practice-content {
-  font-size: 1.25rem;
-  line-height: 1.6;
-  background-color: #f9f9f9;
-  padding: 1.5rem;
+  margin: 2rem 0;
+  padding: 1rem;
+  background-color: #f8f9fa;
   border-radius: 8px;
-  margin-bottom: 1.5rem;
-  min-height: 200px;
+  font-size: 1.2rem;
+  line-height: 1.8;
+}
+
+.text-segment {
   white-space: pre-wrap;
   word-break: break-all;
 }
 
-.practice-content span {
+.text-segment span {
   position: relative;
+  transition: all 0.2s;
 }
 
-.practice-content span.typed {
-  color: #4CAF50;
+.text-segment span.typed {
+  color: #28a745;
 }
 
-.practice-content span.current {
-  background-color: rgba(76, 175, 80, 0.2);
-  border-bottom: 2px solid #4CAF50;
+.text-segment span.current {
+  background-color: #007bff;
+  color: white;
+  border-radius: 2px;
 }
 
-.practice-content span.error {
-  color: #f44336;
+.text-segment span.error {
+  color: #dc3545;
   text-decoration: underline;
-  text-decoration-color: #f44336;
+  text-decoration-color: #dc3545;
+}
+
+.segment-info {
+  margin-top: 1rem;
+  text-align: center;
+  color: #6c757d;
 }
 
 .input-area {
-  margin-bottom: 1.5rem;
+  margin-top: 2rem;
 }
 
 .input-area input {
   width: 100%;
-  padding: 0.75rem;
-  font-size: 1rem;
-  border: 1px solid #ddd;
+  padding: 0.5rem;
+  font-size: 1.1rem;
+  border: 2px solid #ced4da;
   border-radius: 4px;
+  transition: border-color 0.2s;
 }
+
+.input-area input:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.input-area input:disabled {
+  background-color: #e9ecef;
+  cursor: not-allowed;
+}
+
 
 .actions {
   display: flex;
