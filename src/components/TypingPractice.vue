@@ -22,22 +22,27 @@
       </div>
       
       <div class="practice-content" ref="contentRef">
-        <span 
-          v-for="(char, index) in practiceContent" 
-          :key="index"
-          :class="{
-            'typed': index < currentIndex,
-            'current': index === currentIndex,
-            'error': errors[index]
-          }"
-        >{{ char }}</span>
+        <div class="text-segment">
+          <span 
+            v-for="(char, index) in visibleContent" 
+            :key="index"
+            :class="{
+              'typed': index < (currentIndex - currentSegmentStart),
+              'current': index === (currentIndex - currentSegmentStart),
+              'error': errors[currentSegmentStart + index]
+            }"
+          >{{ char }}</span>
+        </div>
+        <div class="segment-info" v-if="totalSegments > 1">
+          第 {{ currentSegment + 1 }}/{{ totalSegments }} 段
+        </div>
       </div>
       
-      <div class="typed-content">
-        <p>已输入内容：</p>
-        <div class="typed-text">{{ typedText }}</div>
+      <!-- 添加历史输入显示区域 -->
+      <div class="history-input">
+        <h3>已输入内容</h3>
+        <div class="history-text" v-html="historyInputContent"></div>
       </div>
-      
       <div class="input-area">
         <input 
           type="text" 
@@ -53,41 +58,15 @@
           spellcheck="false"
         />
       </div>
-      
       <div class="actions">
-        <button class="btn-primary" @click="restart">重新开始</button>
-        <button class="btn-secondary" @click="goBack">返回选择</button>
-      </div>
-      
-      <div v-if="isFinished" class="result-overlay">
-        <div class="result-card">
-          <h2>练习完成！</h2>
-          <div class="result-stats">
-            <div class="result-stat">
-              <div class="result-label">速度</div>
-              <div class="result-value">{{ speed }} 字/分</div>
-            </div>
-            <div class="result-stat">
-              <div class="result-label">准确率</div>
-              <div class="result-value">{{ accuracy }}%</div>
-            </div>
-            <div class="result-stat">
-              <div class="result-label">用时</div>
-              <div class="result-value">{{ formatTime(time) }}</div>
-            </div>
-          </div>
-          <div class="result-actions">
-            <button class="btn-primary" @click="restart">再次练习</button>
-            <button class="btn-secondary" @click="viewResults">查看详细结果</button>
-          </div>
-        </div>
+        <button class="btn-secondary" @click="goBack">返回</button>
       </div>
     </div>
   </div>
 </template>
 
 <script>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 
@@ -104,14 +83,9 @@ export default {
     
     // 分段相关的计算属性
     const SEGMENT_SIZE = 200 // 每段显示的字符数
+    const totalSegments = computed(() => Math.ceil(practiceContent.value.length / SEGMENT_SIZE))
     const currentSegment = computed(() => Math.floor(currentIndex.value / SEGMENT_SIZE))
     const currentSegmentStart = computed(() => currentSegment.value * SEGMENT_SIZE)
-    
-    const handleKeyDown = (event) => {
-    if (event.key === 'Enter' && isFinished.value) {
-      restart()
-    }
-    }
     const visibleContent = computed(() => {
       const start = currentSegmentStart.value
       const end = Math.min(start + SEGMENT_SIZE, practiceContent.value.length)
@@ -135,6 +109,22 @@ export default {
     const time = ref(0)
     const timer = ref(null)
     const isFinished = ref(false)
+    const historyInput = ref('')
+    
+    const historyInputContent = computed(() => {
+      if (!historyInput.value) return ''
+      let result = ''
+      for (let i = 0; i < historyInput.value.length; i++) {
+        const char = historyInput.value[i]
+        const expectedChar = practiceContent.value[i]
+        if (char === expectedChar) {
+          result += `<span class="typed-correct">${char}</span>`
+        } else {
+          result += `<span class="typed-error">${char}</span>`
+        }
+      }
+      return result
+    })
     
     const speed = computed(() => {
       if (time.value === 0) return 0
@@ -178,6 +168,7 @@ export default {
           const char = input[i]
           const expectedChar = practiceContent.value[currentIndex.value]
           
+          historyInput.value += char
           if (char === expectedChar) {
             errors.value[currentIndex.value] = false
             currentIndex.value++
@@ -210,65 +201,58 @@ export default {
       router.push('/results')
     }
     
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter' && isFinished.value) {
+        restart()
+      }
+    }
+    
     const restart = () => {
+      inputText.value = ''
       currentIndex.value = 0
       errors.value = {}
       startTime.value = null
       time.value = 0
       isFinished.value = false
-      inputText.value = ''
+      historyInput.value = ''
       stopTimer()
+      
+      if (inputRef.value) {
+        inputRef.value.focus()
+      }
     }
     
     const goBack = () => {
       router.push('/mode-selector')
     }
     
-    onMounted(() => {
-      // 如果没有练习内容，返回模式选择页面
-      if (!practiceContent.value) {
-        router.push('/mode-selector')
-        return
-      }
-      
-      // 聚焦输入框
-      if (inputRef.value) {
-        inputRef.value.focus()
-      }
-    })
-    
-    onUnmounted(() => {
-      stopTimer()
-    })
-    
-    const displayNextKey = computed(() => {
-      if (isFinished.value || !practiceContent.value) return ''
-      return practiceContent.value[currentIndex.value] || ''
-    })
-
-    const typedText = computed(() => {
-      return practiceContent.value.slice(0, currentIndex.value)
-    })
+    const formatTime = (seconds) => {
+      const mins = Math.floor(seconds / 60)
+      const secs = seconds % 60
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+    }
     
     return {
       contentRef,
       inputRef,
-      practiceContent,
-      selectedMode,
-      modeName,
       inputText,
+      visibleContent,
       currentIndex,
+      currentSegmentStart,
       errors,
       time,
-      isFinished,
       speed,
       accuracy,
-      typedText,
+      isFinished,
+      totalSegments,
+      currentSegment,
+      modeName,
+      historyInput,
+      historyInputContent,
       handleInput,
       handleKeyDown,
       restart,
       goBack,
-      viewResults,
       formatTime
     }
   }
@@ -298,23 +282,6 @@ export default {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
-  position: relative;
-}
-
-.btn-back {
-  position: absolute;
-  left: 0;
-  padding: 0.5rem 1rem;
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.btn-back:hover {
-  background-color: #45a049;
 }
 
 h1 {
@@ -323,18 +290,15 @@ h1 {
 }
 
 .mode-info {
-  font-size: 1rem;
+  font-size: 1.1rem;
   color: #666;
-  padding: 0.5rem 1rem;
-  background-color: #f0f0f0;
-  border-radius: 4px;
 }
 
 .stats {
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 1.5rem;
-  background-color: #f9f9f9;
+  justify-content: space-around;
+  margin-bottom: 2rem;
+  background-color: #f8f9fa;
   padding: 1rem;
   border-radius: 8px;
 }
@@ -344,78 +308,75 @@ h1 {
 }
 
 .stat-label {
-  font-size: 0.875rem;
+  font-size: 0.9rem;
   color: #666;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
 }
 
 .stat-value {
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-weight: bold;
   color: #333;
 }
 
 .practice-content {
-  font-size: 1.25rem;
-  line-height: 1.6;
-  background-color: #f9f9f9;
-  padding: 1.5rem;
-  border-radius: 8px;
-  margin-bottom: 1.5rem;
-  min-height: 200px;
-  white-space: pre-wrap;
-  word-break: break-all;
-  position: relative;
-}
-
-.next-key-hint {
-  position: absolute;
-  bottom: -30px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 1rem;
-  color: #666;
   background-color: #fff;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+  border: 1px solid #e0e0e0;
 }
 
-.next-key {
+.text-segment {
+  font-size: 1.2rem;
+  line-height: 1.8;
+  margin-bottom: 1rem;
+}
+
+.segment-info {
+  text-align: right;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.typed {
+  color: #4CAF50;
   font-weight: bold;
-  color: #4CAF50;
-  margin-left: 0.5rem;
 }
 
-.practice-content span {
-  position: relative;
+.current {
+  background-color: #e3f2fd;
+  padding: 0 2px;
+  border-radius: 2px;
 }
 
-.practice-content span.typed {
-  color: #4CAF50;
-}
-
-.practice-content span.current {
-  background-color: rgba(76, 175, 80, 0.2);
-  border-bottom: 2px solid #4CAF50;
-}
-
-.practice-content span.error {
+.error {
   color: #f44336;
   text-decoration: underline;
   text-decoration-color: #f44336;
 }
 
 .input-area {
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
 }
 
-.input-area input {
+input {
   width: 100%;
-  padding: 0.75rem;
-  font-size: 1rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  padding: 1rem;
+  font-size: 1.1rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  transition: border-color 0.3s;
+}
+
+input:focus {
+  outline: none;
+  border-color: #2196f3;
+}
+
+input:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
 }
 
 .actions {
@@ -424,214 +385,56 @@ h1 {
   gap: 1rem;
 }
 
-.btn-primary {
-  padding: 0.75rem 2rem;
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 4px;
+.btn-primary,
+.btn-secondary {
+  padding: 0.8rem 2rem;
   font-size: 1rem;
+  border-radius: 4px;
   cursor: pointer;
+  transition: all 0.3s;
 }
 
-.btn-primary:hover {
-  background-color: #45a049;
+.btn-primary {
+  background-color: #2196f3;
+  color: white;
+  border: none;
 }
 
 .btn-secondary {
-  padding: 0.75rem 2rem;
-  background-color: transparent;
-  color: #666;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-  cursor: pointer;
+  background-color: #e0e0e0;
+  color: #333;
+  border: none;
+}
+
+.btn-primary:hover {
+  background-color: #1976d2;
 }
 
 .btn-secondary:hover {
-  background-color: #f5f5f5;
+  background-color: #bdbdbd;
 }
 
-.result-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(255, 255, 255, 0.9);
-  display: flex;
-  justify-content: center;
-  align-items: center;
+.history-input {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
   border-radius: 8px;
-}
-
-.result-card {
-  background-color: white;
-  padding: 2rem;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  text-align: center;
-  width: 80%;
-}
-
-.result-card h2 {
-  margin-top: 0;
-  color: #4CAF50;
-  margin-bottom: 1.5rem;
-}
-
-.result-stats {
-  display: flex;
-  justify-content: space-around;
-  margin-bottom: 1.5rem;
-}
-
-.result-stat {
-  text-align: center;
-}
-
-.result-label {
-  font-size: 0.875rem;
-  color: #666;
-  margin-bottom: 0.25rem;
-}
-
-.result-value {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: #333;
-}
-
-.result-actions {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-}
-
-.keyboard-hint {
-  margin: 1rem 0;
-  font-size: 1.1rem;
-  background-color: #f0f0f0;
-  padding: 0.75rem;
-  border-radius: 4px;
-  text-align: center;
-}
-
-.next-key {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  background-color: #4CAF50;
-  color: white;
-  border-radius: 4px;
-  font-weight: bold;
-  margin-left: 0.5rem;
-}
-
-
-.file-upload-area {
-  margin: 20px 0;
-  text-align: center;
-}
-
-.upload-btn, .start-btn {
-  padding: 10px 20px;
-  margin: 10px;
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 16px;
-}
-
-.upload-btn:hover, .start-btn:hover {
-  background-color: #45a049;
-}
-
-.file-info {
-  margin: 10px 0;
-  color: #666;
-}
-
-.file-preview {
-  margin: 20px 0;
-  padding: 15px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background-color: #f9f9f9;
-}
-
-.preview-content {
   max-height: 200px;
   overflow-y: auto;
-  padding: 10px;
-  border: 1px solid #eee;
-  border-radius: 4px;
-  background-color: white;
-  white-space: pre-wrap;
-  text-align: left;
-  font-size: 14px;
-  line-height: 1.5;
 }
 
-.typed-history {
-  margin-bottom: 1.5rem;
-  padding: 1rem;
-  background-color: #f9f9f9;
-  border-radius: 8px;
-}
-
-.typed-history h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1rem;
-  color: #666;
-}
-
-.history-content {
-  font-size: 1.25rem;
-  line-height: 1.6;
-  color: #4CAF50;
-  min-height: 1.6em;
-}
-
-
-.typed-content {
-  margin: 1rem 0;
-  padding: 1rem;
-  background-color: #f5f5f5;
-  border-radius: 4px;
-}
-
-.typed-content p {
-  font-size: 0.875rem;
-  color: #666;
-  margin-bottom: 0.5rem;
-}
-
-.typed-text {
+.history-text {
   font-size: 1.1rem;
-  color: #333;
-  line-height: 1.4;
-  word-break: break-all;
+  line-height: 1.6;
+  word-wrap: break-word;
   white-space: pre-wrap;
+}
+
+.typed-correct {
+  color: #4caf50;
+}
+
+.typed-error {
+  color: #f44336;
 }
 </style>
-
-const viewResults = () => {
-  router.push('/results')
-}
-
-const formatTime = (seconds) => {
-  const mins = Math.floor(seconds / 60)
-  const secs = seconds % 60
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-}
-
-const viewResults = () => {
-  store.dispatch('saveResults', {
-    speed: speed.value,
-    accuracy: accuracy.value,
-    time: time.value
-  })
-  router.push('/results')
-}
