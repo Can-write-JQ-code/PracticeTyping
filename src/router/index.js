@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 // 导入组件
-const Auth = () => import('../components/Auth.vue')
 const ModeSelector = () => import('../components/ModeSelector.vue')
 const TypingPractice = () => import('../components/TypingPractice.vue')
 const Results = () => import('../components/Results.vue')
@@ -10,12 +9,7 @@ const FileUpload = () => import('../components/FileUpload.vue')
 const routes = [
   {
     path: '/',
-    redirect: '/auth'
-  },
-  {
-    path: '/auth',
-    name: 'Auth',
-    component: Auth
+    redirect: '/mode-selector'
   },
   {
     path: '/mode-selector',

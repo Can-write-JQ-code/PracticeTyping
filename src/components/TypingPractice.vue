@@ -39,9 +39,9 @@
       </div>
       
       <!-- 添加历史输入显示区域 -->
-      <div class="history-input">
-        <h3>已输入内容</h3>
-        <div class="history-text" v-html="historyInputContent"></div>
+      <div class="history-input" v-if="historyInput">
+        <h3>已输入内容：</h3>
+        <div class="history-text" v-html="historyInput"></div>
       </div>
       <div class="input-area">
         <input 
@@ -109,22 +109,6 @@ export default {
     const time = ref(0)
     const timer = ref(null)
     const isFinished = ref(false)
-    const historyInput = ref('')
-    
-    const historyInputContent = computed(() => {
-      if (!historyInput.value) return ''
-      let result = ''
-      for (let i = 0; i < historyInput.value.length; i++) {
-        const char = historyInput.value[i]
-        const expectedChar = practiceContent.value[i]
-        if (char === expectedChar) {
-          result += `<span class="typed-correct">${char}</span>`
-        } else {
-          result += `<span class="typed-error">${char}</span>`
-        }
-      }
-      return result
-    })
     
     const speed = computed(() => {
       if (time.value === 0) return 0
@@ -154,6 +138,8 @@ export default {
       }
     }
     
+    const userInputHistory = ref([])
+    
     const handleInput = () => {
       if (!practiceContent.value) return
       
@@ -168,7 +154,12 @@ export default {
           const char = input[i]
           const expectedChar = practiceContent.value[currentIndex.value]
           
-          historyInput.value += char
+          // 记录用户输入的字符
+          userInputHistory.value.push({
+            char: char,
+            isCorrect: char === expectedChar
+          })
+          
           if (char === expectedChar) {
             errors.value[currentIndex.value] = false
             currentIndex.value++
@@ -214,7 +205,7 @@ export default {
       startTime.value = null
       time.value = 0
       isFinished.value = false
-      historyInput.value = ''
+      userInputHistory.value = [] // 重置用户输入历史
       stopTimer()
       
       if (inputRef.value) {
@@ -226,11 +217,18 @@ export default {
       router.push('/mode-selector')
     }
     
-    const formatTime = (seconds) => {
-      const mins = Math.floor(seconds / 60)
-      const secs = seconds % 60
-      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-    }
+    const historyInput = computed(() => {
+      if (userInputHistory.value.length === 0) return ''
+      let result = ''
+      userInputHistory.value.forEach(entry => {
+        if (entry.isCorrect) {
+          result += entry.char
+        } else {
+          result += `<span style="color: red">${entry.char}</span>`
+        }
+      })
+      return result
+    })
     
     return {
       contentRef,
@@ -248,12 +246,15 @@ export default {
       currentSegment,
       modeName,
       historyInput,
-      historyInputContent,
       handleInput,
       handleKeyDown,
       restart,
       goBack,
-      formatTime
+      formatTime: (seconds) => {
+        const mins = Math.floor(seconds / 60)
+        const secs = seconds % 60
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+      }
     }
   }
 }
@@ -290,15 +291,18 @@ h1 {
 }
 
 .mode-info {
-  font-size: 1.1rem;
+  font-size: 1rem;
   color: #666;
+  padding: 0.5rem 1rem;
+  background-color: #f0f0f0;
+  border-radius: 4px;
 }
 
 .stats {
   display: flex;
-  justify-content: space-around;
-  margin-bottom: 2rem;
-  background-color: #f8f9fa;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  background-color: #f9f9f9;
   padding: 1rem;
   border-radius: 8px;
 }
@@ -308,75 +312,81 @@ h1 {
 }
 
 .stat-label {
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   color: #666;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
 .stat-value {
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   font-weight: bold;
   color: #333;
 }
 
 .practice-content {
+  margin: 2rem 0;
+  padding: 1.5rem;
   background-color: #fff;
-  padding: 2rem;
-  border-radius: 8px;
-  margin-bottom: 2rem;
   border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1.25rem;
+  line-height: 1.6;
 }
 
-.text-segment {
-  font-size: 1.2rem;
-  line-height: 1.8;
-  margin-bottom: 1rem;
+.text-segment span {
+  transition: all 0.2s ease;
 }
 
-.segment-info {
-  text-align: right;
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.typed {
+.text-segment span.typed {
   color: #4CAF50;
-  font-weight: bold;
 }
 
-.current {
-  background-color: #e3f2fd;
-  padding: 0 2px;
-  border-radius: 2px;
+.text-segment span.current {
+  background-color: #E3F2FD;
+  border-bottom: 2px solid #2196F3;
 }
 
-.error {
-  color: #f44336;
-  text-decoration: underline;
-  text-decoration-color: #f44336;
+.text-segment span.error {
+  color: #F44336;
+  background-color: #FFEBEE;
+
+  background-color: rgba(76, 175, 80, 0.1);
+  border-bottom: 1px dashed #4CAF50;
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.btn-secondary {
+  padding: 0.75rem 2rem;
+  background-color: #f5f5f5;
+  color: #666;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  background-color: #e0e0e0;
+  color: #333;
 }
 
 .input-area {
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
-input {
+.input-area input {
   width: 100%;
-  padding: 1rem;
-  font-size: 1.1rem;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
-  transition: border-color 0.3s;
-}
-
-input:focus {
-  outline: none;
-  border-color: #2196f3;
-}
-
-input:disabled {
-  background-color: #f5f5f5;
-  cursor: not-allowed;
+  padding: 0.75rem;
+  font-size: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
 }
 
 .actions {
@@ -385,56 +395,177 @@ input:disabled {
   gap: 1rem;
 }
 
-.btn-primary,
-.btn-secondary {
-  padding: 0.8rem 2rem;
-  font-size: 1rem;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
 .btn-primary {
-  background-color: #2196f3;
+  padding: 0.75rem 2rem;
+  background-color: #4CAF50;
   color: white;
   border: none;
-}
-
-.btn-secondary {
-  background-color: #e0e0e0;
-  color: #333;
-  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
 }
 
 .btn-primary:hover {
-  background-color: #1976d2;
+  background-color: #45a049;
+}
+
+.btn-secondary {
+  padding: 0.75rem 2rem;
+  background-color: transparent;
+  color: #666;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
 }
 
 .btn-secondary:hover {
-  background-color: #bdbdbd;
+  background-color: #f5f5f5;
+}
+
+.result-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 8px;
+}
+
+.result-card {
+  background-color: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  width: 80%;
+}
+
+.result-card h2 {
+  margin-top: 0;
+  color: #4CAF50;
+  margin-bottom: 1.5rem;
+}
+
+.result-stats {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 1.5rem;
+}
+
+.result-stat {
+  text-align: center;
+}
+
+.result-label {
+  font-size: 0.875rem;
+  color: #666;
+  margin-bottom: 0.25rem;
+}
+
+.result-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #333;
+}
+
+.result-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.keyboard-hint {
+  margin: 1rem 0;
+  font-size: 1.1rem;
+  background-color: #f0f0f0;
+  padding: 0.75rem;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.next-key {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background-color: #4CAF50;
+  color: white;
+  border-radius: 4px;
+  font-weight: bold;
+  margin-left: 0.5rem;
+}
+
+
+.file-upload-area {
+  margin: 20px 0;
+  text-align: center;
+}
+
+.upload-btn, .start-btn {
+  padding: 10px 20px;
+  margin: 10px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.upload-btn:hover, .start-btn:hover {
+  background-color: #45a049;
+}
+
+.file-info {
+  margin: 10px 0;
+  color: #666;
+}
+
+.file-preview {
+  margin: 20px 0;
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
+
+.preview-content {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  background-color: white;
+  white-space: pre-wrap;
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .history-input {
-  margin-bottom: 2rem;
-  padding: 1rem;
+  margin-top: 20px;
+  padding: 15px;
   background-color: #f8f9fa;
   border-radius: 8px;
-  max-height: 200px;
-  overflow-y: auto;
+}
+
+.history-input h3 {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  color: #333;
 }
 
 .history-text {
-  font-size: 1.1rem;
-  line-height: 1.6;
-  word-wrap: break-word;
-  white-space: pre-wrap;
-}
-
-.typed-correct {
-  color: #4caf50;
-}
-
-.typed-error {
-  color: #f44336;
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 10px;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.5;
 }
 </style>

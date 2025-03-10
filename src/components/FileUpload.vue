@@ -64,12 +64,7 @@ export default {
 
     const previewContent = computed(() => {
       if (!fileContent.value) return ''
-      const content = fileContent.value
-      if (content.length <= 400) return content
-      
-      const start = content.slice(0, 200)
-      const end = content.slice(-200)
-      return `${start}\n...（中间省略${content.length - 400}个字符）...\n${end}`
+      return fileContent.value.slice(0, 200) + (fileContent.value.length > 200 ? '...' : '')
     })
 
     const handleFileChange = async (event) => {
@@ -111,8 +106,12 @@ export default {
     const startPractice = () => {
       if (!fileContent.value) return
       
-      // 保存文件内容到Vuex并设置模式
-      store.commit('setPracticeContent', fileContent.value)
+      // 保存文件内容到Vuex
+      store.dispatch('loadPracticeContent', {
+        mode: 'custom',
+        customText: fileContent.value
+      })
+      // 设置模式为自定义
       store.dispatch('selectMode', 'custom')
       // 跳转到练习页面
       router.push('/typing-practice')
